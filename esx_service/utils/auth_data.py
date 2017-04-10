@@ -535,6 +535,40 @@ class AuthorizationDataManager:
         logging.error(error_msg)
         raise DbAccessError(self.db_path, error_msg)
 
+    def _handle_upgrade_1_1_to_1_2(self):
+        error_msg, tenant = self.get_tenant(auth_data_const.DEFAULT_TENANT)
+        if not tenant:
+            err = self.__create_default_tenant()
+            if err:
+                return err
+            privileges = tenant.privileges
+            for p in privileges:
+                if p.datastore_url == auth_data_const.DEFAULT_DS_URL:
+                    # default_privileges exist, try to remove
+                    err = tenant.remove_datastore_access_privileges(self.conn, auth_data_const.DEFAULT_TENANT)
+                    if err:
+                        return err
+                    logging.debug("_handle_upgrade_1_1_to_1_2: remove default_privilege for _DEFAULT tenant")
+                    break
+            # set default_datastore to __VM_DS
+            err = tenant.set_default_datastore(self.conn, auth_data_const.VM_DS)
+            if err:
+                return err
+            logging.debug("_handle_upgrade_1_1_to_1_2: set default_datastore to __VM_DS for _DEFAULT tenant")
+
+            err = self.__create_vm_ds_privileges_for_default_tenant()
+            if err:
+                return err
+            logging.debug("_handle_upgrade_1_1_to_1_2: create privilege to __VM_DS for _DEFAULT tenant")
+
+            err = self.__create_all_ds_privileges_for_default_tenant()
+            if err:
+                return err
+            logging.debug("_handle_upgrade_1_1_to_1_2: create privilege to __ALL_DS for _DEFAULT tenant")
+
+            #
+
+
     def __handle_upgrade(self):
         error_msg, major_ver, minor_ver = self.__get_db_version()
         if error_msg:
@@ -545,6 +579,11 @@ class AuthorizationDataManager:
             # DB version read from auth-DB is 1.0, upgrade is needed
             if major_ver == 1 and minor_ver == 0:
                 self._handle_upgrade_1_0_to_1_1()
+
+        if DB_MAJOR_VER == 1 and DB_MINOR_VER == 2:
+            # DB version read from auth-DB is 1.1, upgrade is needed
+            if major_ver == 1 and minor_ver == 1:
+                self._handle_upgrade_1_1_to_1_2()
 
 
     def __connect(self):
@@ -845,6 +884,20 @@ class AuthorizationDataManager:
                   'max_volume_size': 0,
                   'usage_quota': 0}]
 
+    def get_all_ds_privileges_dict(self):
+        """Form a dictionary with all_ds privileges used in cresting of default tenant"""
+        return  [{'datastore_url': auth_data_const.ALL_DS_URL,
+                  'allow_create': 1,
+                  'max_volume_size': 0,
+                  'usage_quota': 0}]
+
+    def get_vm_ds_privileges_dict(self):
+        """Form a dictionary with VM_DS privileges used in cresting of default tenant"""
+        return  [{'datastore_url': auth_data_const.VM_DS_URL,
+                  'allow_create': 1,
+                  'max_volume_size': 0,
+                  'usage_quota': 0}]
+
     def __create_default_privileges(self):
         """
         This privilege will match any <tenant, datastore> pair
@@ -866,6 +919,54 @@ class AuthorizationDataManager:
             logging.warning(err)
             return err
         return None
+
+    def __create_all_ds_privileges_for_default_tenant(self):
+            """
+            create _ALL_DS privilege for _DEFAULT tenant
+            For given tenant, __ALL_DS privilege will match any datastore which does not have an entry
+            in privileges table explicitly
+            this privilege will have full permission (create, delete, and mount)
+            and no max_volume_size and usage_quota limitation
+            """
+            logging.debug("__create_all_ds_privileges_for_default_tenant")
+            privileges = self.get_all_ds_privileges_dict()
+
+            error_msg, tenant = self.get_tenant(auth_data_const.DEFAULT_TENANT)
+            if error_msg:
+                err = error_code_to_message[ErrorCode.TENANT_NOT_EXIST].format(auth_data_const.DEFAULT_TENANT)
+                logging.warning(err)
+                return err
+
+            error_msg = tenant.set_datastore_access_privileges(self.conn, privileges)
+            if error_msg:
+                err = error_code_to_message[ErrorCode.TENANT_SET_ACCESS_PRIVILEGES_FAILED].format(auth_data_const.DEFAULT_TENANT,
+                                                                                                  auth_data_const.ALL_DS, error_msg)
+                logging.warning(err)
+                return err
+            return None
+
+    def __create_vm_ds_privileges_for_default_tenant(self):
+        """
+        create _VM_DS privilege for _DEFAULT tenant
+        this privilege will have full permission (create, delete, and mount)
+        and no max_volume_size and usage_quota limitation
+        """
+        logging.debug("__create_vm_ds_privileges_for_default_tenant")
+        privileges = self.get_vm_ds_privileges_dict()
+        error_msg, tenant = self.get_tenant(auth_data_const.DEFAULT_TENANT)
+        if error_msg:
+            err = error_code_to_message[ErrorCode.TENANT_NOT_EXIST].format(auth_data_const.DEFAULT_TENANT)
+            logging.warning(err)
+            return err
+
+        error_msg = tenant.set_datastore_access_privileges(self.conn, privileges)
+        if error_msg:
+            err = error_code_to_message[ErrorCode.TENANT_SET_ACCESS_PRIVILEGES_FAILED].format(auth_data_const.DEFAULT_TENANT,
+                                                                                              auth_data_const.ALL_DS, error_msg)
+            logging.warning(err)
+            return err
+        return None
+
 
 
     def get_tenant(self, tenant_name):
