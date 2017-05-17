@@ -1157,24 +1157,7 @@ def handle_stale_attach(vmdk_path, kv_uuid):
 
        if cur_vm:
           # Detach the disk only if VM is powered off
-          if cur_vm.runtime.powerState == VM_POWERED_OFF:
-             logging.info("Detaching disk %s from VM(powered off) - %s\n",
-                             vmdk_path, cur_vm.config.name)
-             device = findDeviceByPath(vmdk_path, cur_vm)
-             if device:
-                msg = disk_detach_int(vmdk_path, cur_vm, device)
-                if msg:
-                   msg += " failed to detach disk {0} from VM={1}.".format(vmdk_path,
-                                                                           cur_vm.config.name)
-                   logging.warning(msg)
-                   return err(msg)
-             else:
-                logging.warning("Failed to find disk %s in powered off VM - %s, resetting volume metadata\n",
-                                vmdk_path, cur_vm.config.name)
-                ret = reset_vol_meta(vmdk_path)
-                if ret:
-                   return ret
-          else:
+          if cur_vm.runtime.powerState != VM_POWERED_OFF:
              msg = "Disk {0} already attached to VM={1}".format(vmdk_path,
                                                                 cur_vm.config.name)
              logging.warning(msg)
