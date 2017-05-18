@@ -97,6 +97,12 @@ func GetVolumePropertiesDockerCli(volName string, hostname string) string {
 	return op
 }
 
+// CheckVolumeAccessibility returns true if the given volume is accessible
+// from the specified VM; false otherwise.
+func CheckVolumeAccessibility(hostName string, volumeName string) bool {
+	return GetVolumeStatusHost(volumeName, hostName) != ""
+}
+
 // VerifyAttachedStatus - verify volume is attached and name of the VM attached
 // is consistent on both docker host and ESX
 func VerifyAttachedStatus(name, hostName, esxName string) bool {
@@ -117,7 +123,7 @@ func VerifyAttachedStatus(name, hostName, esxName string) bool {
 	return isMatching
 }
 
-//GetVolumeStatusHost - get the volume status on a given host
+// GetVolumeStatusHost - get the volume status on a given host
 func GetVolumeStatusHost(name, hostName string) string {
 	cmd := dockercli.InspectVolume + " --format '{{index .Status.status}}' " + name
 	op := ExecCmd(hostName, cmd)

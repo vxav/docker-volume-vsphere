@@ -25,9 +25,8 @@ import (
 	"github.com/vmware/docker-volume-vsphere/tests/utils/ssh"
 )
 
-// CreateDefaultVolume is going to create vsphere docker volume with
-// defaults.
-func CreateDefaultVolume(ip, name string) ([]byte, error) {
+// CreateVolume is going to create vsphere docker volume with given name.
+func CreateVolume(ip, name string) ([]byte, error) {
 	log.Printf("Creating volume [%s] on VM [%s]\n", name, ip)
 	return ssh.InvokeCommand(ip, dockercli.CreateVolume+"--name="+name)
 }
