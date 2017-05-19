@@ -33,7 +33,7 @@ func CreateVolume(ip, name string) ([]byte, error) {
 
 // AttachVolume - attach volume to container on given host
 func AttachVolume(ip, volName, containerName string) ([]byte, error) {
-	log.Printf("Attaching volume [%s] on VM[%s]\n", volName, ip)
+	log.Printf("Attaching volume [%s] on VM [%s]\n", volName, ip)
 	return ssh.InvokeCommand(ip, dockercli.RunContainer+"-d -v "+volName+
 		":/vol1 --name "+containerName+
 		" busybox tail -f /dev/null")
@@ -55,5 +55,6 @@ func KillDocker(ip string) ([]byte, error) {
 
 // RemoveContainer - remove the container forcefully (stops and removes it)
 func RemoveContainer(ip, containerName string) ([]byte, error) {
+	log.Printf("Removing container [%s] on VM [%s]\n", containerName, ip)
 	return ssh.InvokeCommand(ip, dockercli.RemoveContainer+containerName)
 }
