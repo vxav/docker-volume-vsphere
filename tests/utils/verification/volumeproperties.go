@@ -103,6 +103,7 @@ func CheckVolumeAvailability(hostName string, volumeName string) bool {
 	log.Printf("Checking volume [%s] availability from VM [%s]\n", volumeName, hostName)
 
 	volumes := GetDockerVolumes(hostName)
+	//TODO: add more detailed verification here, e.g. checking volume driver name
 	return strings.Contains(volumes, volumeName)
 }
 

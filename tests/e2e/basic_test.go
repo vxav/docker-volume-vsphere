@@ -52,9 +52,9 @@ var _ = Suite(&BasicTestSuite{})
 // 1. Create a volume
 // 2. Verify the volume is available
 // 3. Attach the volume
-// 4. Verify volume status
+// 4. Verify volume status is attached
 // 5. Remove the container
-// 6. Verify volume status
+// 6. Verify volume status is detached
 // 7. Remove the volume
 // 8. Verify the volume is unavailable
 func (s *BasicTestSuite) TestVolumeLifecycle(c *C) {
