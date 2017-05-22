@@ -47,8 +47,18 @@ var _ = Suite(&BasicTestSuite{})
 // VM1 - local VMFS datastore
 // VM2 - shared VMFS datastore
 // VM3 - shared VSAN datastore
-func (s *BasicTestSuite) TestVolumeCreation(c *C) {
-	log.Printf("START: basic-test.TestVolumeCreation")
+//
+// Test steps:
+// 1. Create a volume
+// 2. Verify the volume is available
+// 3. Attach the volume
+// 4. Verify volume status
+// 5. Remove the container
+// 6. Verify volume status
+// 7. Remove the volume
+// 8. Verify the volume is unavailable
+func (s *BasicTestSuite) TestVolumeLifecycle(c *C) {
+	log.Printf("START: basic-test.TestVolumeLifecycle")
 
 	dockerHosts := []string{os.Getenv("VM1"), os.Getenv("VM2"), os.Getenv("VM3")}
 	for _, host := range dockerHosts {
@@ -57,58 +67,61 @@ func (s *BasicTestSuite) TestVolumeCreation(c *C) {
 			continue
 		}
 
-		// Create a volume
 		out, err := dockercli.CreateVolume(host, s.volumeName)
 		c.Assert(err, IsNil, Commentf(misc.FormatOutput(out)))
 
-		// Attach the volume
+		accessible := verification.CheckVolumeAvailability(host, s.volumeName)
+		c.Assert(accessible, Equals, true, Commentf("Volume %s is not available", s.volumeName))
+
 		out, err = dockercli.AttachVolume(host, s.volumeName, s.containerName)
 		c.Assert(err, IsNil, Commentf(misc.FormatOutput(out)))
 
-		// Verify volume status
 		status := verification.VerifyAttachedStatus(s.volumeName, host, s.esxName)
 		c.Assert(status, Equals, true, Commentf("Volume %s is not attached", s.volumeName))
 
-		// Clean up the container
 		out, err = dockercli.RemoveContainer(host, s.containerName)
 		c.Assert(err, IsNil, Commentf(misc.FormatOutput(out)))
 
-		// Verify volume status
 		status = verification.VerifyDetachedStatus(s.volumeName, host, s.esxName)
 		c.Assert(status, Equals, true, Commentf("Volume %s is still attached", s.volumeName))
 
-		// Clean up the volume
 		out, err = dockercli.DeleteVolume(host, s.volumeName)
 		c.Assert(err, IsNil, Commentf(misc.FormatOutput(out)))
+
+		accessible = verification.CheckVolumeAvailability(host, s.volumeName)
+		c.Assert(accessible, Equals, false, Commentf("Volume %s is still available", s.volumeName))
 	}
 
-	log.Printf("END: basic-test.TestVolumeCreation")
+	log.Printf("END: basic-test.TestVolumeLifecycle")
 }
 
-// Test volume visibility: volume is created on the local datastore attached to VM1:
-// VM1 - accessible to the volume
-// VM2 - inaccessible to the volume
-func (s *BasicTestSuite) TestVolumeAccessibility(c *C) {
-	log.Printf("START: basic-test.TestVolumeAccessibility")
+// Test volume isolation: Volume is created on the local datastore attached to
+// the ESX where VM1 resides on. It's expected that this volume is visible to
+// VM1, but invisible to VM2 which resides on a different ESX that has no access
+// to this datastore.
+//
+// Test steps:
+// 1. Create a volume from VM1
+// 2. Verify the volume is available from VM1
+// 3. Verify the volume is unavailable from VM2
+// 4. Remove the volume
+func (s *BasicTestSuite) TestVolumeIsolation(c *C) {
+	log.Printf("START: basic-test.TestVolumeIsolation")
 
 	vm1, vm2 := os.Getenv("VM1"), os.Getenv("VM2")
 
-	// Create a volume from VM1
 	out, err := dockercli.CreateVolume(vm1, s.volumeName)
 	c.Assert(err, IsNil, Commentf(misc.FormatOutput(out)))
 
-	// Verify the volume is accessible from VM1
-	accessible := verification.CheckVolumeAccessibility(vm1, s.volumeName)
-	c.Assert(accessible, Equals, true, Commentf("Volume %s is not accessible", s.volumeName))
+	accessible := verification.CheckVolumeAvailability(vm1, s.volumeName)
+	c.Assert(accessible, Equals, true, Commentf("Volume %s is not available", s.volumeName))
 
-	// Verify the volume is inaccessible from VM4
-	accessible = verification.CheckVolumeAccessibility(vm2, s.volumeName)
+	accessible = verification.CheckVolumeAvailability(vm2, s.volumeName)
 	//TODO: VM2 inaccessible to this volume is currently not available
-	//c.Assert(accessible, Equals, false, Commentf("Volume %s is accessible", s.volumeName))
+	//c.Assert(accessible, Equals, false, Commentf("Volume %s is still available", s.volumeName))
 
-	// Clean up the volume
 	out, err = dockercli.DeleteVolume(vm1, s.volumeName)
 	c.Assert(err, IsNil, Commentf(misc.FormatOutput(out)))
 
-	log.Printf("END: basic-test.TestVolumeAccessibility")
+	log.Printf("END: basic-test.TestVolumeIsolation")
 }

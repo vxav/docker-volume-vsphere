@@ -44,12 +44,12 @@ func GetVolumeName() string {
 
 // GetVolumeNameWithTimeStamp prepares unique volume name by appending current time-stamp value
 func GetVolumeNameWithTimeStamp() string {
-	return "volume_" + strconv.FormatInt(time.Now().Unix(), 10)
+	return "test_volume_" + strconv.FormatInt(time.Now().Unix(), 10)
 }
 
 // GetContainerNameWithTimeStamp prepares unique container name by appending current time-stamp value
 func GetContainerNameWithTimeStamp() string {
-	return "busybox_" + strconv.FormatInt(time.Now().Unix(), 10)
+	return "test_container_" + strconv.FormatInt(time.Now().Unix(), 10)
 }
 
 // GetEndPoint1 returns first VM endpoint supplied through CLI

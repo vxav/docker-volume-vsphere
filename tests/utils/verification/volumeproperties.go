@@ -97,10 +97,18 @@ func GetVolumePropertiesDockerCli(volName string, hostname string) string {
 	return op
 }
 
-// CheckVolumeAccessibility returns true if the given volume is accessible
+// CheckVolumeAvailability returns true if the given volume is available
 // from the specified VM; false otherwise.
-func CheckVolumeAccessibility(hostName string, volumeName string) bool {
-	return GetVolumeStatusHost(volumeName, hostName) != ""
+func CheckVolumeAvailability(hostName string, volumeName string) bool {
+	log.Printf("Checking volume [%s] availability from VM [%s]\n", volumeName, hostName)
+
+	volumes := GetDockerVolumes(hostName)
+	return strings.Contains(volumes, volumeName)
+}
+
+// GetDockerVolumes returns all docker volumes available from the given host
+func GetDockerVolumes(hostName string) string {
+	return ExecCmd(hostName, dockercli.ListVolumes)
 }
 
 // VerifyAttachedStatus - verify volume is attached and name of the VM attached
