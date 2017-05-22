@@ -74,9 +74,9 @@ func TestVolumeProperties(t *testing.T) {
 		dockerCliCheck = verification.IsDockerCliCheckNeeded(vms[vmIndx])
 		for i := 0; i < len(volSizes); i++ {
 			for k := 0; k < len(formatTypes); k++ {
-				containerName = inputparams.GetContainerNameWithTimeStamp()
+				containerName = inputparams.GetContainerNameWithTimeStamp("volumeprop_test")
 				log.Println("Creating a volume of Format Type - ", formatTypes[k])
-				volName := inputparams.GetVolumeNameWithTimeStamp()
+				volName := inputparams.GetVolumeNameWithTimeStamp("volumeprop_test")
 				_, err := ssh.InvokeCommand(vms[vmIndx], "docker volume create --driver=vsphere --name="+
 					volName+" -o size="+volSizes[i]+" -o diskformat="+formatTypes[k])
 				if err != nil {

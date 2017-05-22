@@ -39,8 +39,8 @@ type PluginSuite struct {
 func (s *PluginSuite) SetUpTest(c *C) {
 	s.hostName = os.Getenv("VM2")
 	s.esxName = os.Getenv("ESX")
-	s.volumeName = inputparams.GetVolumeNameWithTimeStamp()
-	s.containerName = inputparams.GetContainerNameWithTimeStamp()
+	s.volumeName = inputparams.GetVolumeNameWithTimeStamp("restart_test")
+	s.containerName = inputparams.GetContainerNameWithTimeStamp("restart_test")
 }
 
 func (s *PluginSuite) TearDownTest(c *C) {
