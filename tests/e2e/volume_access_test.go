@@ -37,21 +37,20 @@ type VolumeAccessTestSuite struct {
 	dockerHostIP  []string
 	containerList [2][]string
 	esxIP         string
+	dsList        []string
 }
 
 func (s *VolumeAccessTestSuite) SetUpSuite(c *C) {
 	s.dockerHostIP = []string{os.Getenv("VM1"), os.Getenv("VM2")}
 	s.esxIP = os.Getenv("ESX")
 
-	dsList := govc.GetDatastoreList()
-	c.Assert(len(dsList), Not(Equals), 0, Commentf("Datastore list empty"))
+	s.dsList = govc.GetDatastoreList()
+	c.Assert(len(s.dsList), Not(Equals), 0, Commentf("Datastore list empty"))
+}
 
-	dsName := dsList[0]
+func (s *VolumeAccessTestSuite) SetUpTest(c *C) {
+	dsName := s.dsList[0]
 	s.volumeName = inputparams.GetVolumeNameWithTimeStamp("vol_access") + "@" + dsName
-
-	// Create a volume
-	out, err := dockercli.CreateVolume(s.dockerHostIP[0], s.volumeName)
-	c.Assert(err, IsNil, Commentf(out))
 }
 
 func (s *VolumeAccessTestSuite) TearDownTest(c *C) {
@@ -59,6 +58,7 @@ func (s *VolumeAccessTestSuite) TearDownTest(c *C) {
 		cnameList := strings.Join(s.containerList[i], " ")
 		out, err := dockercli.RemoveContainer(s.dockerHostIP[i], cnameList)
 		c.Assert(err, IsNil, Commentf(out))
+		s.containerList[i] = s.containerList[i][:0]
 	}
 
 	out, err := dockercli.DeleteVolume(s.dockerHostIP[0], s.volumeName)
@@ -94,7 +94,11 @@ func (s *VolumeAccessTestSuite) TestAccessUpdate(c *C) {
 	data2 := "message_by_host2"
 	testFile := "test.txt"
 
-	out, err := dockercli.WriteToVolume(s.dockerHostIP[0], s.volumeName, s.newCName(0), testFile, data1)
+	// Create a volume
+	out, err := dockercli.CreateVolume(s.dockerHostIP[0], s.volumeName)
+	c.Assert(err, IsNil, Commentf(out))
+
+	out, err = dockercli.WriteToVolume(s.dockerHostIP[0], s.volumeName, s.newCName(0), testFile, data1)
 	c.Assert(err, IsNil, Commentf(out))
 
 	out, err = dockercli.ReadFromVolume(s.dockerHostIP[1], s.volumeName, s.newCName(1), testFile)
@@ -135,4 +139,50 @@ func (s *VolumeAccessTestSuite) TestAccessUpdate(c *C) {
 	c.Assert(out, Equals, data2)
 
 	log.Printf("END: volume_access_test.TestAccessUpdate")
+}
+
+// Verify read, write is possible after volume access update
+// 1. Create a volume with read-only access
+// 2. Write from host1 to the file on volume should fail
+// 3. Write from host2 should also fail
+// 4. Update the volume access to read-write
+// 5. Write from host1 should succeed
+// 6. Read from host2 to verify the content is same
+// 7. Write from host2 should succeed
+// 8. Read from host1 to verify the content is same
+func (s *VolumeAccessTestSuite) TestAccessUpdate_R_RW(c *C) {
+	log.Printf("START: volume_access_test.TestAccessUpdate_R_RW")
+
+	data1 := "message_by_host1"
+	data2 := "message_by_host2"
+	testFile := "test.txt"
+
+	// Create a volume
+	out, err := dockercli.CreateVolumeWithOptions(s.dockerHostIP[0], s.volumeName, " -o access="+adminconst.ReadOnlyAccess)
+	c.Assert(err, IsNil, Commentf(out))
+
+	out, err = dockercli.WriteToVolume(s.dockerHostIP[0], s.volumeName, s.newCName(0), testFile, data1)
+	c.Assert(strings.Contains(out, errorWriteVolume), Equals, true, Commentf(out))
+
+	out, err = dockercli.WriteToVolume(s.dockerHostIP[1], s.volumeName, s.newCName(1), testFile, data2)
+	c.Assert(strings.Contains(out, errorWriteVolume), Equals, true, Commentf(out))
+
+	out, err = admincli.UpdateVolumeAccess(s.esxIP, s.volumeName, adminconst.DefaultVMgroup, adminconst.ReadWriteAccess)
+	c.Assert(err, IsNil, Commentf(out))
+
+	out, err = dockercli.WriteToVolume(s.dockerHostIP[0], s.volumeName, s.newCName(0), testFile, data1)
+	c.Assert(err, IsNil, Commentf(out))
+
+	out, err = dockercli.ReadFromVolume(s.dockerHostIP[1], s.volumeName, s.newCName(1), testFile)
+	c.Assert(err, IsNil, Commentf(out))
+	c.Assert(out, Equals, data1)
+
+	out, err = dockercli.WriteToVolume(s.dockerHostIP[1], s.volumeName, s.newCName(1), testFile, data2)
+	c.Assert(err, IsNil, Commentf(out))
+
+	out, err = dockercli.ReadFromVolume(s.dockerHostIP[0], s.volumeName, s.newCName(0), testFile)
+	c.Assert(err, IsNil, Commentf(out))
+	c.Assert(out, Equals, data2)
+
+	log.Printf("END: volume_access_test.TestAccessUpdate_R_RW")
 }
