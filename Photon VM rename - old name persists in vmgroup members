@@ -1,0 +1,7 @@
+Not a question but something you might want to take a look at if not already done.
+
+After renaming a Photon host VM (in vsphere) that is part of a vmgroup, the old name persist in the list of member VMs.
+
+This prevents (at least that's what I was doing) the removal of the vmgroup.
+
+To workaround it I opened vmdkops_config.db with SQLite Browser and removed the vm record, which allowed me to remove the vmgroup.
