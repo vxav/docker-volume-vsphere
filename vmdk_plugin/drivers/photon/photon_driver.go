@@ -113,25 +113,25 @@ func NewVolumeDriver(targetURL string, projectID string, hostID string, mountDir
 // map hasn't been initialized, return 1 prevent detach and remove.
 
 // Return the number of references for the given volume
-func (d *VolumeDriver) getRefCount(vol string) uint {
+func (d *VolumeDriver) getRefCount(vol string) (uint, error) {
 	if d.refCounts.GetInitSuccess() != true {
-		return 1
+		return 0, fmt.Errorf(plugin_utils.ErrorPluginInit)
 	}
-	return d.refCounts.GetCount(vol)
+	return d.refCounts.GetCount(vol), nil
 }
 
 // Increment the reference count for the given volume
-func (d *VolumeDriver) incrRefCount(vol string) uint {
+func (d *VolumeDriver) incrRefCount(vol string) (uint, error) {
 	if d.refCounts.GetInitSuccess() != true {
-		return 1
+		return 0, fmt.Errorf(plugin_utils.ErrorPluginInit)
 	}
-	return d.refCounts.Incr(vol)
+	return d.refCounts.Incr(vol), nil
 }
 
 // Decrement the reference count for the given volume
 func (d *VolumeDriver) decrRefCount(vol string) (uint, error) {
 	if d.refCounts.GetInitSuccess() != true {
-		return 1, nil
+		return 0, fmt.Errorf(plugin_utils.ErrorPluginInit)
 	}
 	return d.refCounts.Decr(vol)
 }
@@ -381,7 +381,13 @@ func (d *VolumeDriver) processMount(r volume.MountRequest) volume.Response {
 
 	// If the volume is already mounted , just increase the refcount.
 	// Note: for new keys, GO maps return zero value, so no need for if_exists.
-	refcnt := d.incrRefCount(r.Name) // save map traversal
+	refcnt, err := d.incrRefCount(r.Name) // save map traversal
+
+	if err != nil {
+		log.Errorf(err.Error())
+		// we proceed with mount here because whether we need to mount
+		// or not is appropriately handled by AlreadyMounted check ahead.
+	}
 	log.Debugf("volume name=%s refcnt=%d", r.Name, refcnt)
 	if refcnt > 1 {
 		log.WithFields(
@@ -561,9 +567,16 @@ func (d *VolumeDriver) Remove(r volume.Request) volume.Response {
 	log.WithFields(log.Fields{"name": r.Name}).Info("Removing volume ")
 
 	// Docker is supposed to block 'remove' command if the volume is used. Verify.
-	if d.getRefCount(r.Name) != 0 {
+	refcnt, err := d.getRefCount(r.Name)
+
+	if err != nil {
+		log.Error(err.Error())
+		return volume.Response{Err: err.Error()}
+	}
+
+	if refcnt != 0 {
 		msg := fmt.Sprintf("Remove failure - volume is still mounted. "+
-			" volume=%s, refcount=%d", r.Name, d.getRefCount(r.Name))
+			" volume=%s, refcount=%d", r.Name, refcnt)
 		log.Error(msg)
 		return volume.Response{Err: msg}
 	}
